@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Pytanov Shop</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: var(--tg-theme-bg-color, #ffffff);
+      --text: var(--tg-theme-text-color, #000000);
+      --hint: var(--tg-theme-hint-color, #999999);
+      --btn: var(--tg-theme-button-color, #3b82f6);
+      --btn-text: var(--tg-theme-button-text-color, #ffffff);
+      --secondary-bg: var(--tg-theme-secondary-bg-color, #f5f5f5);
+    }
+
+    body {
+      font-family: 'Manrope', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 1rem;
+      min-height: 100vh;
+    }
+
+    .header {
+      text-align: center;
+      padding: 1rem 0 1.5rem;
+    }
+    .header h1 { font-size: 1.5rem; font-weight: 800; }
+    .header p  { font-size: 0.85rem; color: var(--hint); margin-top: 0.3rem; }
+
+    .cart-bar {
+      background: var(--secondary-bg);
+      border-radius: 12px;
+      padding: 0.8rem 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.2rem;
+      font-size: 0.85rem;
+    }
+    .cart-bar span { color: var(--hint); }
+    .cart-count { font-weight: 700; color: var(--btn); }
+
+    .products {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.8rem;
+      margin-bottom: 5rem;
+    }
+
+    .card {
+      background: var(--secondary-bg);
+      border-radius: 16px;
+      overflow: hidden;
+      transition: transform 0.2s;
+    }
+    .card:active { transform: scale(0.97); }
+
+    .card-img {
+      width: 100%;
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 3rem;
+    }
+    .img-1 { background: linear-gradient(135deg, #f0e8d8, #e0d0b8); }
+    .img-2 { background: linear-gradient(135deg, #d8e8f0, #b8d0e0); }
+    .img-3 { background: linear-gradient(135deg, #f0d8d8, #e0b8b8); }
+    .img-4 { background: linear-gradient(135deg, #d8f0d8, #b8e0b8); }
+
+    .card-info { padding: 0.8rem; }
+    .card-name { font-size: 0.85rem; font-weight: 700; margin-bottom: 0.2rem; }
+    .card-price { font-size: 0.8rem; color: var(--hint); margin-bottom: 0.6rem; }
+
+    .add-btn {
+      width: 100%;
+      padding: 0.5rem;
+      background: var(--btn);
+      color: var(--btn-text);
+      border: none;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: 'Manrope', sans-serif;
+      transition: opacity 0.2s;
+    }
+    .add-btn:active { opacity: 0.8; }
+    .add-btn.added { background: #22c55e; }
+
+    .checkout-bar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      padding: 1rem;
+      background: var(--bg);
+      border-top: 1px solid rgba(0,0,0,0.08);
+    }
+    .checkout-btn {
+      width: 100%;
+      padding: 0.9rem;
+      background: var(--btn);
+      color: var(--btn-text);
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: 'Manrope', sans-serif;
+    }
+    .checkout-btn:disabled { opacity: 0.4; }
+
+    .empty { text-align: center; color: var(--hint); font-size: 0.85rem; padding: 2rem 0; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🛍 Pytanov Shop</h1>
+  <p>Выбери товары и оформи заказ</p>
+</div>
+
+<div class="cart-bar">
+  <span>Товаров в корзине:</span>
+  <span class="cart-count" id="cartCount">0</span>
+</div>
+
+<div class="products" id="productList"></div>
+
+<div class="checkout-bar">
+  <button class="checkout-btn" id="checkoutBtn" disabled onclick="checkout()">
+    Оформить заказ
+  </button>
+</div>
+
+<script>
+  // Инициализация Telegram Web App
+  const tg = window.Telegram.WebApp;
+  tg.expand(); // разворачиваем на весь экран
+  tg.ready();
+
+  // Товары
+  const products = [
+    { id: 1, name: "Canvas Bag",      price: 4490,  emoji: "👜", bg: "img-1" },
+    { id: 2, name: "Sneakers",        price: 8990,  emoji: "👟", bg: "img-2" },
+    { id: 3, name: "Gold Ring",       price: 2290,  emoji: "💍", bg: "img-3" },
+    { id: 4, name: "Jacket Premium",  price: 12990, emoji: "🧥", bg: "img-4" },
+  ];
+
+  // Корзина
+  const cart = {};
+
+  // Рендер товаров
+  function renderProducts() {
+    const list = document.getElementById('productList');
+    list.innerHTML = products.map(p => `
+      <div class="card">
+        <div class="card-img ${p.bg}">${p.emoji}</div>
+        <div class="card-info">
+          <div class="card-name">${p.name}</div>
+          <div class="card-price">${p.price.toLocaleString()} ₽</div>
+          <button class="add-btn" id="btn-${p.id}" onclick="addToCart(${p.id})">
+            + В корзину
+          </button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function addToCart(id) {
+    cart[id] = (cart[id] || 0) + 1;
+    updateUI(id);
+  }
+
+  function updateUI(id) {
+    const total = Object.values(cart).reduce((a, b) => a + b, 0);
+    document.getElementById('cartCount').textContent = total;
+
+    const btn = document.getElementById(`btn-${id}`);
+    btn.textContent = `✓ Добавлено (${cart[id]})`;
+    btn.classList.add('added');
+
+    const checkoutBtn = document.getElementById('checkoutBtn');
+    checkoutBtn.disabled = total === 0;
+
+    // Считаем сумму
+    let sum = 0;
+    for (const [pid, qty] of Object.entries(cart)) {
+      const product = products.find(p => p.id == pid);
+      sum += product.price * qty;
+    }
+    checkoutBtn.textContent = `Оформить заказ — ${sum.toLocaleString()} ₽`;
+  }
+
+  function checkout() {
+    // Собираем данные заказа
+    const items = Object.entries(cart).map(([id, qty]) => {
+      const p = products.find(p => p.id == id);
+      return { name: p.name, qty, price: p.price };
+    });
+
+    const orderData = JSON.stringify({
+      user: tg.initDataUnsafe?.user?.first_name || "Гость",
+      items,
+      total: items.reduce((s, i) => s + i.price * i.qty, 0)
+    });
+
+    // Отправляем данные боту
+    tg.sendData(orderData);
+  }
+
+  renderProducts();
+</script>
+</body>
+</html>
